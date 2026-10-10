@@ -1,0 +1,110 @@
+{
+    "唤醒时回应": {
+        "description": "唤醒时回应",
+        "type": "object",
+        "hint": "唤醒时回应，在唤醒阶段还未请求llm时，因为唤醒后并不一定会立即请求llm，前面可能还有消息正在回复，此功能并不会百分百准确",
+        "items": {
+            "私聊回应方式": {
+                "type": "string",
+                "description": "私聊时回应方式",
+                "hint": "私聊不支持贴表情",
+                "options": [
+                    "戳一戳",
+                    "关闭"
+                ],
+                "default": "关闭"
+            },
+            "群聊回应方式": {
+                "type": "string",
+                "description": "群聊时回应方式",
+                "options": [
+                    "戳一戳",
+                    "贴表情",
+                    "关闭"
+                ],
+                "default": "贴表情"
+            },
+            "贴表情ID列表": {
+                "type": "text",
+                "description": "贴表情ID列表",
+                "default": "282",
+                "hint": "贴表情ID列表，随机选择一个，空格或逗号分隔，可只填一个",
+                "condition": {
+                    "群聊回应方式": "贴表情"
+                }
+            }
+        }
+    },
+    "llm请求前回应": {
+        "description": "llm请求前回应",
+        "type": "object",
+        "hint": "llm请求前回应，在即将请求llm阶段回应",
+        "items": {
+            "私聊回应方式": {
+                "type": "string",
+                "description": "私聊时回应方式",
+                "hint": "私聊不支持贴表情",
+                "options": [
+                    "戳一戳",
+                    "关闭"
+                ],
+                "default": "关闭"
+            },
+            "群聊回应方式": {
+                "type": "string",
+                "description": "群聊时回应方式",
+                "options": [
+                    "戳一戳",
+                    "贴表情",
+                    "关闭"
+                ],
+                "default": "贴表情"
+            },
+            "贴表情ID列表": {
+                "type": "text",
+                "description": "贴表情ID列表",
+                "default": "124",
+                "hint": "贴表情ID列表，随机选择一个，空格或逗号分隔，可只填一个",
+                "condition": {
+                    "群聊回应方式": "贴表情"
+                }
+            }
+        }
+    },
+    "消息回复完成时": {
+        "description": "消息回复完成时",
+        "type": "object",
+        "hint": "消息回复完成时回应，分段回复的则所有分段完成时",
+        "items": {
+            "私聊回应方式": {
+                "type": "string",
+                "description": "私聊时回应方式",
+                "hint": "私聊不支持贴表情",
+                "options": [
+                    "戳一戳",
+                    "关闭"
+                ],
+                "default": "关闭"
+            },
+            "群聊回应方式": {
+                "type": "string",
+                "description": "群聊时回应方式",
+                "options": [
+                    "戳一戳",
+                    "贴表情",
+                    "关闭"
+                ],
+                "default": "戳一戳"
+            },
+            "贴表情ID列表": {
+                "type": "text",
+                "description": "贴表情ID列表",
+                "default": "79",
+                "hint": "贴表情ID列表，随机选择一个，空格或逗号分隔，可只填一个",
+                "condition": {
+                    "群聊回应方式": "贴表情"
+                }
+            }
+        }
+    }
+}
