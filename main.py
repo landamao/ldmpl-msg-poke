@@ -1,0 +1,216 @@
+import random
+import sys
+from astrbot.api.all import Star, Context, logger, AstrBotConfig, filter
+from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
+
+# 本事件已贴出去的表情（[(message_id, emoji_id), ...]），供事件收尾时撤回
+已贴表情键 = "_消息回应_已贴表情"
+
+
+def 收尾钩子():
+    """事件收尾钩子（框架 v4.27.56 起提供）
+
+    旧版框架没有 filter.on_event_completed，这里退化成空装饰器，
+    插件照常加载，只是不会自动撤回表情。
+    """
+    注册 = getattr(filter, "on_event_completed", None)
+    return 注册() if 注册 else (lambda func: func)
+
+
+class 消息回应(Star):
+    def __init__(self, context: Context, config: AstrBotConfig):
+        super().__init__(context)
+        def 解析表情回应ID列表(raw:str):
+            if not raw:
+                return []
+            try:
+                return [ int(i) for i in ','.join(raw.split()).replace('，', ',').split(',') if i ]
+            except Exception as e:
+                logger.error(f"解析表情ID列表失败：{e}", exc_info=True)
+                return []
+
+        唤醒时回应 = config['唤醒时回应']
+        self.私聊唤醒时回应方式 = 唤醒时回应['私聊回应方式']
+        self.群聊唤醒时回应方式 = 唤醒时回应['群聊回应方式']
+        self.唤醒时贴表情ID列表 = 解析表情回应ID列表(唤醒时回应.get('贴表情ID列表'))
+        if self.群聊唤醒时回应方式 == '贴表情' and not self.唤醒时贴表情ID列表:
+            logger.error("唤醒时回应选择了贴表情，但未填写有效的表情ID，该功能将关闭")
+            self.群聊唤醒时回应方式 = '关闭'
+
+        llm请求前回应 = config['llm请求前回应']
+        self.私聊llm请求前回应方式 = llm请求前回应['私聊回应方式']
+        self.群聊llm请求前回应方式 = llm请求前回应['群聊回应方式']
+        self.llm请求前贴表情ID列表 = 解析表情回应ID列表(llm请求前回应.get('贴表情ID列表'))
+        if self.群聊llm请求前回应方式 == '贴表情' and not self.llm请求前贴表情ID列表:
+            logger.error("llm请求前回应选择了贴表情，但未填写有效的表情ID，该功能将关闭")
+            self.群聊llm请求前回应方式 = '关闭'
+
+        消息回复完成时 = config['消息回复完成时']
+        self.私聊消息回复完成时回应方式 = 消息回复完成时['私聊回应方式']
+        self.群聊消息回复完成时回应方式 = 消息回复完成时['群聊回应方式']
+        self.消息回复完成时贴表情ID列表 = 解析表情回应ID列表(消息回复完成时.get('贴表情ID列表'))
+        if self.群聊消息回复完成时回应方式 == '贴表情' and not self.消息回复完成时贴表情ID列表:
+            logger.error("消息回复完成时回应选择了贴表情，但未填写有效的表情ID，该功能将关闭")
+            self.群聊消息回复完成时回应方式 = '关闭'
+
+        # 概率唤醒是被动唤醒，再戳一戳/贴表情容易让群友觉得莫名其妙
+        self.概率唤醒跳过回应 = config['概率唤醒跳过回应']
+
+    @filter.on_waiting_llm_request(priority=-sys.maxsize)
+    async def llm队列时(self, event: AiocqhttpMessageEvent, *_, **__):
+        """进入llm请求队列时执行响应策略（唤醒后）"""
+        if not isinstance(event, AiocqhttpMessageEvent):
+            return
+        if self.概率唤醒跳过回应 and self.是概率唤醒(event):
+            return
+        if event.get_group_id():
+            if self.群聊唤醒时回应方式 == '关闭':
+                return
+            elif self.群聊唤醒时回应方式 == '戳一戳':
+                await self.戳一戳(event)
+            elif self.群聊唤醒时回应方式 == '贴表情':
+                await self.贴表情(event, random.choice(self.唤醒时贴表情ID列表))
+            else:
+                return
+        else:
+            if self.私聊唤醒时回应方式 == '关闭':
+                return
+            elif self.私聊唤醒时回应方式 == '戳一戳':
+                await self.戳一戳(event)
+            else:
+                return
+
+    @filter.on_llm_request(priority=-sys.maxsize)
+    async def llm请求前(self, event: AiocqhttpMessageEvent, *_, **__):
+        """llm请求前执行响应策略"""
+        if not isinstance(event, AiocqhttpMessageEvent):
+            return
+        if self.概率唤醒跳过回应 and self.是概率唤醒(event):
+            return
+        if event.get_group_id():
+            if self.群聊llm请求前回应方式 == '关闭':
+                return
+            elif self.群聊llm请求前回应方式 == '戳一戳':
+                await self.戳一戳(event)
+            elif self.群聊llm请求前回应方式 == '贴表情':
+                await self.贴表情(event, random.choice(self.llm请求前贴表情ID列表))
+            else:
+                return
+        else:
+            if self.私聊llm请求前回应方式 == '关闭':
+                return
+            elif self.私聊llm请求前回应方式 == '戳一戳':
+                await self.戳一戳(event)
+            else:
+                return
+
+    @filter.after_message_sent()
+    async def 消息发送后(self, event: AiocqhttpMessageEvent, *_, **__):
+        """消息发送后执行相应策略"""
+        if not isinstance(event, AiocqhttpMessageEvent):
+            return
+        result = event.get_result()
+        if not result.is_model_result():
+            return
+        if self.概率唤醒跳过回应 and self.是概率唤醒(event):
+            return
+        if event.get_group_id():
+            if self.群聊消息回复完成时回应方式 == '关闭':
+                return
+            elif self.群聊消息回复完成时回应方式 == '戳一戳':
+                await self.戳一戳(event)
+            elif self.群聊消息回复完成时回应方式 == '贴表情':
+                await self.贴表情(event, random.choice(self.消息回复完成时贴表情ID列表))
+            else:
+                return
+        else:
+            if self.私聊消息回复完成时回应方式 == '关闭':
+                return
+            elif self.私聊消息回复完成时回应方式 == '戳一戳':
+                await self.戳一戳(event)
+            else:
+                return
+
+    @收尾钩子()
+    async def 事件结束时(self, event: AiocqhttpMessageEvent, *_, **__):
+        """事件收尾：一条消息都没发出去（被终止、报错、空回复）就撤回贴出去的表情"""
+        if not isinstance(event, AiocqhttpMessageEvent):
+            return
+        已贴 = event.get_extra(已贴表情键)
+        if not 已贴:
+            return
+        # 仍然发出了消息（比如 stop_event() 后 yield 的写法），表情作为已读标记保留
+        if getattr(event, "_has_send_oper", False):
+            return
+        logger.debug(
+            f"群{event.get_group_id()}，消息「{event.get_message_outline()}」未发出回复"
+            f"（{'已终止' if event.is_stopped() else '无结果'}），撤回贴出的表情"
+        )
+        for 消息ID, 表情ID in list(已贴):
+            await self.贴表情(event, 表情ID, 消息ID, set_=False)
+        event.set_extra(已贴表情键, [])
+
+    @staticmethod
+    def 是概率唤醒(event: AiocqhttpMessageEvent) -> bool:
+        """本轮唤醒是否来自群唤醒增强Pro 的「概率唤醒」条件
+
+        群唤醒增强Pro 在消息入口阶段就把唤醒来源写进事件 extra，
+        到本插件的各个钩子触发时一定能读到；未装该插件或其它唤醒来源均为 False。
+        """
+        return str(event.get_extra("qwb_唤醒来源", "") or "") == "概率唤醒"
+
+    @staticmethod
+    async def 贴表情(
+        event: AiocqhttpMessageEvent,
+        face_id: int,
+        消息ID: int | None = None,
+        set_: bool = True,
+    ):
+        """对该事件的消息贴表情；set_=False 时撤回"""
+        msg_id = 消息ID or event.message_obj.raw_message.get("message_id")
+        if not msg_id:
+            logger.warning("贴表情未找到有效消息ID")
+            return
+
+        try:
+            result = await event.bot.call_action(
+                action="set_msg_emoji_like",
+                message_id=msg_id,
+                emoji_id=face_id,
+                set=set_
+            )
+        except Exception as e:
+            动作 = "贴表情" if set_ else "撤回表情"
+            logger.error(f"群{event.get_group_id()}，消息「{event.get_message_outline()}」{动作}失败：{e}", exc_info=True)
+            return
+
+        if set_:
+            已贴 = event.get_extra(已贴表情键) or []
+            if (msg_id, face_id) not in 已贴:
+                已贴.append((msg_id, face_id))
+                event.set_extra(已贴表情键, 已贴)
+        return result
+
+    @staticmethod
+    async def 戳一戳(event: AiocqhttpMessageEvent):
+        """对该事件的发送者戳一戳"""
+        user_id = event.get_sender_id()
+        try:
+            if event.get_group_id():
+                result = await event.bot.call_action(
+                    action="group_poke",
+                    group_id=event.get_group_id(),
+                    user_id=user_id
+                )
+            else:
+                result = await event.bot.call_action(
+                    action="friend_poke",
+                    user_id=user_id
+                )
+            return result
+        except Exception as e:
+            if event.get_group_id():
+                _id = f"群{event.get_group_id()}"
+            else:
+                _id = f"私聊{user_id}"
+            logger.error(f"{_id}，消息「{event.get_message_outline()}」戳一戳失败：{e}", exc_info=True)
