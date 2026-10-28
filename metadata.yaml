@@ -1,6 +1,6 @@
 name: 消息回应
 desc: 在消息请求llm的各个阶段进行回应
-version: v1.0
+version: v1.1
 author: 懒大猫
 repo: https://github.com/landamao/ldmpl-msg-poke
 support_platforms:
