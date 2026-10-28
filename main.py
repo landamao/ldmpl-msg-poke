@@ -1,4 +1,5 @@
 import random
+import sys
 from astrbot.api.all import Star, Context, logger, AstrBotConfig, filter
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 class 消息回应(Star):
@@ -38,7 +39,7 @@ class 消息回应(Star):
             logger.error("消息回复完成时回应选择了贴表情，但未填写有效的表情ID，该功能将关闭")
             self.群聊消息回复完成时回应方式 = '关闭'
 
-    @filter.on_waiting_llm_request()
+    @filter.on_waiting_llm_request(priority=-sys.maxsize)
     async def llm队列时(self, event: AiocqhttpMessageEvent, *_, **__):
         """进入llm请求队列时执行响应策略（唤醒后）"""
         if not isinstance(event, AiocqhttpMessageEvent):
@@ -60,7 +61,7 @@ class 消息回应(Star):
             else:
                 return
 
-    @filter.on_llm_request()
+    @filter.on_llm_request(priority=-sys.maxsize)
     async def llm请求前(self, event: AiocqhttpMessageEvent, *_, **__):
         """llm请求前执行响应策略"""
         if not isinstance(event, AiocqhttpMessageEvent):
