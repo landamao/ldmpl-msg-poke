@@ -1,6 +1,6 @@
 name: 消息回应
-desc: 在消息请求llm的各个阶段进行回应
-version: v1.1
+desc: 在消息请求llm的各个阶段进行回应；消息最终没发出回复时自动撤回贴出的表情
+version: v1.2
 author: 懒大猫
 repo: https://github.com/landamao/ldmpl-msg-poke
 support_platforms:

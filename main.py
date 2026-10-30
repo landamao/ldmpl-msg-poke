@@ -2,6 +2,21 @@ import random
 import sys
 from astrbot.api.all import Star, Context, logger, AstrBotConfig, filter
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
+
+# 本事件已贴出去的表情（[(message_id, emoji_id), ...]），供事件收尾时撤回
+已贴表情键 = "_消息回应_已贴表情"
+
+
+def 收尾钩子():
+    """事件收尾钩子（框架 v4.27.56 起提供）
+
+    旧版框架没有 filter.on_event_completed，这里退化成空装饰器，
+    插件照常加载，只是不会自动撤回表情。
+    """
+    注册 = getattr(filter, "on_event_completed", None)
+    return 注册() if 注册 else (lambda func: func)
+
+
 class 消息回应(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -108,10 +123,34 @@ class 消息回应(Star):
             else:
                 return
 
+    @收尾钩子()
+    async def 事件结束时(self, event: AiocqhttpMessageEvent, *_, **__):
+        """事件收尾：一条消息都没发出去（被终止、报错、空回复）就撤回贴出去的表情"""
+        if not isinstance(event, AiocqhttpMessageEvent):
+            return
+        已贴 = event.get_extra(已贴表情键)
+        if not 已贴:
+            return
+        # 仍然发出了消息（比如 stop_event() 后 yield 的写法），表情作为已读标记保留
+        if getattr(event, "_has_send_oper", False):
+            return
+        logger.debug(
+            f"群{event.get_group_id()}，消息「{event.get_message_outline()}」未发出回复"
+            f"（{'已终止' if event.is_stopped() else '无结果'}），撤回贴出的表情"
+        )
+        for 消息ID, 表情ID in list(已贴):
+            await self.贴表情(event, 表情ID, 消息ID, set_=False)
+        event.set_extra(已贴表情键, [])
+
     @staticmethod
-    async def 贴表情(event: AiocqhttpMessageEvent, face_id: int):
-        """对该事件的消息贴表情"""
-        msg_id = event.message_obj.raw_message.get("message_id")
+    async def 贴表情(
+        event: AiocqhttpMessageEvent,
+        face_id: int,
+        消息ID: int | None = None,
+        set_: bool = True,
+    ):
+        """对该事件的消息贴表情；set_=False 时撤回"""
+        msg_id = 消息ID or event.message_obj.raw_message.get("message_id")
         if not msg_id:
             logger.warning("贴表情未找到有效消息ID")
             return
@@ -121,11 +160,19 @@ class 消息回应(Star):
                 action="set_msg_emoji_like",
                 message_id=msg_id,
                 emoji_id=face_id,
-                set=True
+                set=set_
             )
-            return result
         except Exception as e:
-            logger.error(f"群{event.get_group_id()}，消息「{event.get_message_outline()}」贴表情失败：{e}", exc_info=True)
+            动作 = "贴表情" if set_ else "撤回表情"
+            logger.error(f"群{event.get_group_id()}，消息「{event.get_message_outline()}」{动作}失败：{e}", exc_info=True)
+            return
+
+        if set_:
+            已贴 = event.get_extra(已贴表情键) or []
+            if (msg_id, face_id) not in 已贴:
+                已贴.append((msg_id, face_id))
+                event.set_extra(已贴表情键, 已贴)
+        return result
 
     @staticmethod
     async def 戳一戳(event: AiocqhttpMessageEvent):
