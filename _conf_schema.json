@@ -27,7 +27,7 @@
             "贴表情ID列表": {
                 "type": "text",
                 "description": "贴表情ID列表",
-                "default": "282",
+                "default": "282，148，127868",
                 "hint": "贴表情ID列表，随机选择一个，空格或逗号分隔，可只填一个",
                 "condition": {
                     "群聊回应方式": "贴表情"
@@ -63,7 +63,7 @@
             "贴表情ID列表": {
                 "type": "text",
                 "description": "贴表情ID列表",
-                "default": "124",
+                "default": "124，148，127868",
                 "hint": "贴表情ID列表，随机选择一个，空格或逗号分隔，可只填一个",
                 "condition": {
                     "群聊回应方式": "贴表情"
@@ -99,7 +99,7 @@
             "贴表情ID列表": {
                 "type": "text",
                 "description": "贴表情ID列表",
-                "default": "79",
+                "default": "79，148，127868",
                 "hint": "贴表情ID列表，随机选择一个，空格或逗号分隔，可只填一个",
                 "condition": {
                     "群聊回应方式": "贴表情"

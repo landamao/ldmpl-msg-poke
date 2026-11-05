@@ -69,7 +69,7 @@ class 消息回应(Star):
             elif self.群聊唤醒时回应方式 == '戳一戳':
                 await self.戳一戳(event)
             elif self.群聊唤醒时回应方式 == '贴表情':
-                await self.贴表情(event, random.choice(self.唤醒时贴表情ID列表))
+                await self.贴表情(event, self.随机选表情(event, self.唤醒时贴表情ID列表))
             else:
                 return
         else:
@@ -93,7 +93,7 @@ class 消息回应(Star):
             elif self.群聊llm请求前回应方式 == '戳一戳':
                 await self.戳一戳(event)
             elif self.群聊llm请求前回应方式 == '贴表情':
-                await self.贴表情(event, random.choice(self.llm请求前贴表情ID列表))
+                await self.贴表情(event, self.随机选表情(event, self.llm请求前贴表情ID列表))
             else:
                 return
         else:
@@ -120,7 +120,7 @@ class 消息回应(Star):
             elif self.群聊消息回复完成时回应方式 == '戳一戳':
                 await self.戳一戳(event)
             elif self.群聊消息回复完成时回应方式 == '贴表情':
-                await self.贴表情(event, random.choice(self.消息回复完成时贴表情ID列表))
+                await self.贴表情(event, self.随机选表情(event, self.消息回复完成时贴表情ID列表))
             else:
                 return
         else:
@@ -149,6 +149,13 @@ class 消息回应(Star):
         for 消息ID, 表情ID in list(已贴):
             await self.贴表情(event, 表情ID, 消息ID, set_=False)
         event.set_extra(已贴表情键, [])
+
+    @staticmethod
+    def 随机选表情(event: AiocqhttpMessageEvent, 表情ID列表: list[int]) -> int:
+        """从列表随机选一个本轮还没贴过的表情；全都贴过则退回全列表"""
+        已贴 = {表情ID for _, 表情ID in (event.get_extra(已贴表情键) or [])}
+        未贴过 = [表情ID for 表情ID in 表情ID列表 if 表情ID not in 已贴]
+        return random.choice(未贴过 or 表情ID列表)
 
     @staticmethod
     def 是概率唤醒(event: AiocqhttpMessageEvent) -> bool:
